@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -8,16 +7,13 @@
 
 #define PORT_NO 6500
 #define ADDRESS_SIZE sizeof(struct sockaddr_in)
-#define BACKLOG 5
+#define BACKLOG 6
 
 /*
  * Set up the server's listening loop
  * and start it on a new thread.
  */
 int startListening(){
-
-  //create TCP socket
-  int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
 
   //set up address
   typedef struct sockaddr_in* socketAddr;
@@ -27,6 +23,7 @@ int startListening(){
   serverAddr->sin_addr.s_addr = inet_addr("127.0.0.1");
 
   //bind address to socket
+  int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
   bind(serverSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
 
   //start listening
@@ -34,8 +31,6 @@ int startListening(){
     printf("Listening\n");
   else
     printf("Error\n");
-
-
 
   /*loop to keep accepting new connections*/
   while(1){
