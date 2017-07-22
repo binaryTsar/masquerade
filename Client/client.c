@@ -15,20 +15,18 @@ int main(){
   serverAddr->sin_port = htons(PORT_NO);
   serverAddr->sin_addr.s_addr = inet_addr("127.0.0.1");
 
-  //??
+  //connect from new socket
   int clientSocket = socket(PF_INET, SOCK_STREAM, 0);
-
-  //connect
   connect(clientSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
-
 
   //use connection
   char* buffer = (char*)"Client connection";
   printf("Sending: %s\n",buffer);
   int nBytes = 18;
   send(clientSocket, buffer, nBytes, 0);
-  recv(clientSocket, buffer, nBytes, 0);
-  printf("Received from server: %s\n\n",buffer);
+  char* b = (char*)calloc(20, 1);
+  recv(clientSocket, b, 20, 0);
+  printf("Received from server: %s\n\n",b);
 
   free(serverAddr);
   return 0;
