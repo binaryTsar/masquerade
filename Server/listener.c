@@ -27,10 +27,7 @@ int startListening(){
   bind(serverSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
 
   //start listening
-  if(listen(serverSocket, BACKLOG)==0)
-    printf("Listening\n");
-  else
-    printf("Error\n");
+  listen(serverSocket, BACKLOG);
 
   /*loop to keep accepting new connections*/
   while(1){

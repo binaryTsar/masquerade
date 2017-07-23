@@ -6,45 +6,43 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-int create_socket(int port)
-{
-    int s;
-    struct sockaddr_in addr;
+#define PORT_NO 6500
+#define ADDRESS_SIZE sizeof(struct sockaddr_in)
+#define BACKLOG 6
 
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+//my socket code
+int create_socket() {
+  //set up address
+  typedef struct sockaddr_in* socketAddr;
+  socketAddr serverAddr = (socketAddr)calloc(ADDRESS_SIZE, 1);
+  serverAddr->sin_family = AF_INET;
+  serverAddr->sin_port = htons(PORT_NO);
+  serverAddr->sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s < 0) {
-	perror("Unable to create socket");
-	exit(EXIT_FAILURE);
-    }
+  //bind address to socket
+  int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+  bind(serverSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
 
-    if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-	perror("Unable to bind");
-	exit(EXIT_FAILURE);
-    }
+  //start listening
+  listen(serverSocket, BACKLOG);
 
-    if (listen(s, 1) < 0) {
-	perror("Unable to listen");
-	exit(EXIT_FAILURE);
-    }
-
-    return s;
+  return serverSocket;
 }
 
+//init ssl
 void init_openssl()
 {
     SSL_load_error_strings();
     OpenSSL_add_ssl_algorithms();
 }
 
+//end ssl
 void cleanup_openssl()
 {
     EVP_cleanup();
 }
 
+//create ssl context
 SSL_CTX *create_context()
 {
     const SSL_METHOD *method;
@@ -62,6 +60,7 @@ SSL_CTX *create_context()
     return ctx;
 }
 
+//config context
 void configure_context(SSL_CTX *ctx)
 {
     SSL_CTX_set_ecdh_auto(ctx, 1);
@@ -78,24 +77,27 @@ void configure_context(SSL_CTX *ctx)
     }
 }
 
+//run
 int main()
 {
-    int sock;
-    SSL_CTX *ctx;
-
+    //init
     init_openssl();
-    ctx = create_context();
 
+    //set context
+    SSL_CTX *ctx = create_context();
+
+    //config context
     configure_context(ctx);
 
-    sock = create_socket(6500);
+    //set socket
+    int sock = create_socket();
 
     /* Handle connections */
     while(1) {
         struct sockaddr_in addr;
         uint len = sizeof(addr);
         SSL *ssl;
-        const char reply[] = "other\n";
+        const char reply[] = "test\n";
 
         int client = accept(sock, (struct sockaddr*)&addr, &len);
         if (client < 0) {

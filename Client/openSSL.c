@@ -1,146 +1,104 @@
 #include <sys/socket.h>
-#include <resolv.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <string.h>
+#include <unistd.h>
 
-#include <openssl/bio.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 
-/* ---------------------------------------------------------- *
- * First we need to make a standard TCP socket connection.    *
- * create_socket() creates a socket & TCP-connects to server. *
- * ---------------------------------------------------------- */
-int create_socket(BIO *);
+#define PORT_NO 6500
+#define NAME "128.0.0.1"
+#define ADDRESS_SIZE sizeof(struct sockaddr_in)
+
+/*
+ * My socket code
+ */
+int create_socket() {
+  //set server address
+  typedef struct sockaddr_in* socketAddr;
+  socketAddr serverAddr = (socketAddr)calloc(ADDRESS_SIZE, 1);
+  serverAddr->sin_family = AF_INET;
+  serverAddr->sin_port = htons(PORT_NO);
+  serverAddr->sin_addr.s_addr = inet_addr(NAME);
+
+  //connect from new socket
+  int clientSocket = socket(PF_INET, SOCK_STREAM, 0);
+  connect(clientSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
+  free(serverAddr);
+  return clientSocket;
+}
+
+//init
+void init_openssl() {
+  SSL_load_error_strings();
+  OpenSSL_add_all_algorithms();
+}
 
 int main() {
 
-  BIO *outbio = NULL;
-  X509 *cert = NULL;
-  X509_NAME *certname = NULL;
+  //set up
+  init_openssl();
 
-  /* ---------------------------------------------------------- *
-   * These function calls initialize openssl for correct work.  *
-   * ---------------------------------------------------------- */
-   //init library
-  OpenSSL_add_all_algorithms();
+  //TLS_method is used to select the version use. Tinker with this
+  //and context configuring to select latest tls version
 
-  //load error strings
-  ERR_load_BIO_strings();
-  ERR_load_crypto_strings();
-  SSL_load_error_strings();
-
-  /* ---------------------------------------------------------- *
-   * Create the Input/Output BIO's.                             *
-   * ---------------------------------------------------------- */
-  outbio  = BIO_new_fp(stdout, BIO_NOCLOSE);
-
-  /* ---------------------------------------------------------- *
-   * Try to create a new SSL context                            *
-   * ---------------------------------------------------------- */
-   //TLS_method is used to select the version use. Tinker with this
-   //and context configuring to select latest tls version
+  //set context and create ssl connection
   SSL_CTX *ctx = SSL_CTX_new(TLS_method());
+  SSL *ssl = SSL_new(ctx);
 
-  /* ---------------------------------------------------------- *
-   * Create new SSL connection state object                     *
-   * ---------------------------------------------------------- */
-   SSL *ssl = SSL_new(ctx);
+  //create socket
+  int server = create_socket();
 
-  /* ---------------------------------------------------------- *
-   * Make the underlying TCP socket connection                  *
-   * ---------------------------------------------------------- */
-  int server = create_socket(outbio);
-
-  /* ---------------------------------------------------------- *
-   * Attach the SSL session to the socket descriptor            *
-   * ---------------------------------------------------------- */
+  //attach socket to ssl connection
   SSL_set_fd(ssl, server);
 
-  /* ---------------------------------------------------------- *
-   * Try to SSL-connect here, returns 1 for success             *
-   * ---------------------------------------------------------- */
-   SSL_connect(ssl);
-   /*
-  if ( SSL_connect(ssl) != 1 )
-    BIO_printf(outbio, "Error: Could not build a SSL session\n");
-  else
-    BIO_printf(outbio, "Successfully enabled SSL/TLS session\n");
-*/
-  /* ---------------------------------------------------------- *
-   * Get the remote certificate into the X509 structure         *
-   * ---------------------------------------------------------- */
-  cert = SSL_get_peer_certificate(ssl);
-  //see SSL_CTX_set_verify for verifying clients (protect against DOS)
+  //make connection
 
-  /*
-  if (cert == NULL)
-    BIO_printf(outbio, "Error: Could not get a certificate.\n");
-  else
-    BIO_printf(outbio, "Retrieved the server's certificate.\n");
-    */
+  //
+  char* servername = (char*)"google.com";
+  X509_VERIFY_PARAM* param = SSL_get0_param(ssl);
 
-  char* b = (char*)calloc(20, 1);
-  SSL_read(ssl, b, 20);
-  printf("Read from server: %s", b);
-  /* ---------------------------------------------------------- *
-   * extract various certificate information                    *
-   * -----------------------------------------------------------*/
+  /* Enable automatic hostname checks */
+  X509_VERIFY_PARAM_set_hostflags(param, 0);
+  X509_VERIFY_PARAM_set1_host(param, servername, 0);
+
+  /* Configure a non-zero callback if desired */
+  SSL_set_verify(ssl, SSL_VERIFY_PEER, 0);
+  //
+
+  if (SSL_connect(ssl)  < 0) exit(0);
+
+  printf("Cipher: %s\n", SSL_get_cipher_name(ssl));
+
+  //get certificate info
+  X509_NAME *certname = NULL;
+  X509* cert = SSL_get_peer_certificate(ssl);
+
+  //read cert
   certname = X509_NAME_new();
   certname = X509_get_subject_name(cert);
 
-  /* ---------------------------------------------------------- *
-   * display the cert subject here                              *
-   * -----------------------------------------------------------*/
-  BIO_printf(outbio, "Displaying the certificate subject data:\n");
-  X509_NAME_print_ex(outbio, certname, 0, 0);
-  BIO_printf(outbio, "\n");
+  //show cert
+  printf("Displaying the certificate subject data:\n");
+  //char * X509_NAME_oneline(X509_NAME *a,char *buf,int size);
+  char* name = (char*)malloc(40);
+  X509_NAME_oneline(certname, name, 35);
+  printf("Cert Name: %s\n", name+1);
+  free(name);
 
-  /* ---------------------------------------------------------- *
-   * Free the structures we don't need anymore                  *
-   * -----------------------------------------------------------*/
+  //read data from server to test connection
+  /*
+  char* b = (char*)calloc(20, 1);
+  SSL_read(ssl, b, 20);
+  printf("Read from server: %s", b);
+  */
+  //clean up
   SSL_free(ssl);
-  //close(server);
+  close(server);
   X509_free(cert);
   SSL_CTX_free(ctx);
-  BIO_printf(outbio, "Finished SSL/TLS connection with server.\n");
+  printf("Finished SSL/TLS connection with server.\n");
   return(0);
-}
-
-/* ---------------------------------------------------------- *
- * create_socket() creates the socket & TCP-connect to server *
- * ---------------------------------------------------------- */
-int create_socket(BIO *out) {
-  int sockfd;
-  int port = 6500;
-  struct sockaddr_in dest_addr;
-
-  /* ---------------------------------------------------------- *
-   * create the basic TCP socket                                *
-   * ---------------------------------------------------------- */
-  sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-  dest_addr.sin_family=AF_INET;
-  dest_addr.sin_port=htons(port);
-  dest_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-  /* ---------------------------------------------------------- *
-   * Zeroing the rest of the struct                             *
-   * ---------------------------------------------------------- */
-  memset(&(dest_addr.sin_zero), '\0', 8);
-
-  /* ---------------------------------------------------------- *
-   * Try to make the host connect here                          *
-   * ---------------------------------------------------------- */
-  if ( connect(sockfd, (struct sockaddr *) &dest_addr,
-                              sizeof(struct sockaddr)) == -1 ) {
-    BIO_printf(out, "Error: Cannot connect to host on port %d.\n", port);
-  }
-
-  return sockfd;
 }
