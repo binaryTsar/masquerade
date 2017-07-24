@@ -2,31 +2,115 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
 
 #define PORT_NO 6500
+#define SERVER_IP "127.0.0.1"
 #define ADDRESS_SIZE sizeof(struct sockaddr_in)
 
+//Establish simple connection to server
+int makeSocketConnection();
+
+//test the connection is working
+void testConection(SSL* ssl) {
+
+    //use connection
+    char* buffer = (char*)"Client connection";
+    printf("Sending: %s\n",buffer);
+    int nBytes = 18;
+    SSL_write(ssl, buffer, nBytes);
+    char b[20];
+    SSL_read(ssl, b, 20);
+    printf("Received from server: %s\n\n",b);
+}
+
+/*
+ * Main method
+ */
 int main(){
+
+  //set up connection
+  int connection = makeSocketConnection();
+
+  //set up ssl context
+  SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
+  if (ctx == NULL) {
+    close(connection);
+    perror("Failed to create context.\n");
+    exit(0);
+  }
+
+  //create ssl object
+  SSL* ssl = SSL_new(ctx);
+  if (ssl == NULL) {
+    SSL_CTX_free(ctx);
+    close(connection);
+    perror("Failed to create ssl object.\n");
+    exit(0);
+  }
+
+
+  //connect ssl to connectionn fd
+  if (SSL_set_fd(ssl, connection) == 0) {
+    SSL_CTX_free(ctx);
+    SSL_free(ssl);
+    close(connection);
+    perror("Failed to link ssl to socket.\n");
+    exit(0);
+  }
+
+  //make connection
+  int err = SSL_connect(ssl);
+  if (err == 0) {
+    SSL_CTX_free(ctx);
+    SSL_free(ssl);
+    close(connection);
+    perror("Handshake failed.\n");
+    exit(0);
+  }
+  if (err < 0) {
+    SSL_CTX_free(ctx);
+    SSL_free(ssl);
+    close(connection);
+    perror("SSL error during handshake.\n");
+    exit(0);
+  }
+
+  //test connection
+  testConection(ssl);
+
+  //clean up
+  SSL_CTX_free(ctx);  //safe
+  SSL_free(ssl);      //safe
+  close(connection);  //could cause error
+
+  return 0;
+}
+
+/*
+ * Create a simple socket connection
+ */
+int makeSocketConnection() {
+
   //set server address
   typedef struct sockaddr_in* socketAddr;
   socketAddr serverAddr = (socketAddr)calloc(ADDRESS_SIZE, 1);
   serverAddr->sin_family = AF_INET;
   serverAddr->sin_port = htons(PORT_NO);
-  serverAddr->sin_addr.s_addr = inet_addr("127.0.0.1");
+  serverAddr->sin_addr.s_addr = inet_addr(SERVER_IP);
 
-  //connect from new socket
-  int clientSocket = socket(PF_INET, SOCK_STREAM, 0);
-  connect(clientSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
+  //connect to server
+  int connection = socket(PF_INET, SOCK_STREAM, 0);
+  connect(connection, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
 
-  //use connection
-  char* buffer = (char*)"Client connection";
-  printf("Sending: %s\n",buffer);
-  int nBytes = 18;
-  send(clientSocket, buffer, nBytes, 0);
-  char* b = (char*)calloc(20, 1);
-  recv(clientSocket, b, 20, 0);
-  printf("Received from server: %s\n\n",b);
-
+  //free address struct and return connection
   free(serverAddr);
-  return 0;
+  return connection;
 }
