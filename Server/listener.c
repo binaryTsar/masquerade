@@ -17,7 +17,6 @@ int makeSocket();
 int startListening();
 SSL_CTX* makeContext();
 
-
 int main() {
   return startListening();
 }
@@ -27,6 +26,9 @@ void testConnection(int client, SSL_CTX* ctx) {
 
 
   SSL* ssl = SSL_new(ctx);
+  if (!ssl) {
+    exit(0);
+  }
   if (SSL_set_fd(ssl, client) == 0) {
     perror("SSL Error\n");
     exit(0);
@@ -34,17 +36,16 @@ void testConnection(int client, SSL_CTX* ctx) {
 
   if (SSL_accept(ssl) <= 0) {
       ERR_print_errors_fp(stderr);
+      exit(0);
   }
-  else {
 
-      int nBytes = 1;
-      /*loop while connection is live*/
-      while(nBytes!=0){
-        char buffer[1024];
-        nBytes = SSL_read(ssl,buffer,1024);
+  int nBytes = 1;
+  /*loop while connection is live*/
+  while(nBytes!=0){
+    char buffer[1024];
+    nBytes = SSL_read(ssl,buffer,1024);
 
-        SSL_write(ssl,buffer,nBytes);
-      }
+    SSL_write(ssl,buffer,nBytes);
   }
 
   //clean up and end process
@@ -61,9 +62,15 @@ void testConnection(int client, SSL_CTX* ctx) {
 int startListening(){
 
   int serverSocket = makeSocket();
+  if (serverSocket == -1) {
+    exit(0);
+  }
 
   SSL_CTX* ctx = makeContext();
-
+  if (!ctx) {
+    close(serverSocket);
+    exit(0);
+  }
 
   /*loop to keep accepting new connections*/
   while(1){
@@ -84,7 +91,6 @@ int startListening(){
     }
   }
 
-
   return 0;
 }
 
@@ -92,6 +98,7 @@ int startListening(){
 
 /*
  * Set up socket for server to listen on
+ * Return -1 on failure.
  */
 int makeSocket() {
   //set up address
@@ -103,40 +110,58 @@ int makeSocket() {
 
   //bind address to socket
   int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-  bind(serverSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
+  if (serverSocket < 0) {
+    free(serverAddr);
+    return -1;
+  }
 
-  //start listening
-  listen(serverSocket, BACKLOG);
+  if (bind(serverSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE) == -1) {
+    free(serverAddr);
+    return -1;
+  }
 
   free(serverAddr);
+
+  //start listening
+  if (listen(serverSocket, BACKLOG) == -1) {
+    return -1;
+  }
+
   return serverSocket;
 }
 
-
-//create ssl context
+/*
+ * Create ssl context
+ * Return NULL on failure
+ */
 SSL_CTX* makeContext() {
-    const SSL_METHOD *method;
-    SSL_CTX *ctx;
 
-    method = SSLv23_server_method();
-
-    ctx = SSL_CTX_new(method);
+    //create context
+    SSL_CTX* ctx = SSL_CTX_new(TLS_server_method());
     if (!ctx) {
       perror("Unable to create SSL context");
       ERR_print_errors_fp(stderr);
-      exit(EXIT_FAILURE);
+      return NULL;
     }
+
+    //configure
     SSL_CTX_set_ecdh_auto(ctx, 1);
 
-    /* Set the key and cert */
-    if (SSL_CTX_use_certificate_file(ctx, "cert.pem", SSL_FILETYPE_PEM) <= 0) {
+    //certificate
+    int result = SSL_CTX_use_certificate_file(ctx, "cert.pem", SSL_FILETYPE_PEM);
+    if (result <= 0) {
+        perror("Error reading certificate");
         ERR_print_errors_fp(stderr);
-    exit(EXIT_FAILURE);
+        return NULL;
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, "key.pem", SSL_FILETYPE_PEM) <= 0 ) {
+    //key
+    result = SSL_CTX_use_PrivateKey_file(ctx, "key.pem", SSL_FILETYPE_PEM);
+    if (result <= 0 ) {
+        perror("Error reading key");
         ERR_print_errors_fp(stderr);
-    exit(EXIT_FAILURE);
+        return NULL;
     }
+
     return ctx;
 }

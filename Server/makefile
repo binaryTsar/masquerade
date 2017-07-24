@@ -1,10 +1,10 @@
 CC=clang -std=c99 -o3 -Wall -Wextra
 OPEN_SSL=-lssl -lcrypto
 
-all: listener ex
+all: listener 
 
 clean:
-	rm listener ex
+	rm -f listener ex
 
 listener: listener.c
 	$(CC) listener.c -o listener $(OPEN_SSL)

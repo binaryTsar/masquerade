@@ -22,12 +22,23 @@ int create_socket() {
 
   //bind address to socket
   int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-  bind(serverSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
+  if (serverSocket < 0) {
+    //free(serverAddr);
+    //return -1;
+  }
 
-  //start listening
-  listen(serverSocket, BACKLOG);
+  if (!bind(serverSocket, (struct sockaddr*) serverAddr, ADDRESS_SIZE)) {
+    //free(serverAddr);
+    //return -1;
+  }
 
   free(serverAddr);
+
+  //start listening
+  if (!listen(serverSocket, BACKLOG)) {
+    //return -1;
+  }
+
   return serverSocket;
 }
 

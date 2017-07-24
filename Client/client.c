@@ -11,12 +11,17 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 
-#define PORT_NO 6500
-#define SERVER_IP "127.0.0.1"
+//google for testing
+#define PORT_NO 443
+#define SERVER_IP "172.217.3.99"
+
+//#define PORT_NO 6500
+//#define SERVER_IP "127.0.0.1"
 #define ADDRESS_SIZE sizeof(struct sockaddr_in)
 
 //Establish simple connection to server
 int makeSocketConnection();
+int CB(int a, X509_STORE_CTX* b);
 
 //test the connection is working
 void testConection(SSL* ssl) {
@@ -41,7 +46,7 @@ int main(){
 
   //set up ssl context
   SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
-  if (ctx == NULL) {
+  if (!ctx) {
     close(connection);
     perror("Failed to create context.\n");
     exit(0);
@@ -49,16 +54,18 @@ int main(){
 
   //create ssl object
   SSL* ssl = SSL_new(ctx);
-  if (ssl == NULL) {
+  if (!ssl) {
     SSL_CTX_free(ctx);
     close(connection);
     perror("Failed to create ssl object.\n");
     exit(0);
   }
 
+  //configure ssl
+  SSL_set_verify(ssl, SSL_VERIFY_PEER, *CB);
 
   //connect ssl to connectionn fd
-  if (SSL_set_fd(ssl, connection) == 0) {
+  if (!SSL_set_fd(ssl, connection)) {
     SSL_CTX_free(ctx);
     SSL_free(ssl);
     close(connection);
@@ -108,9 +115,28 @@ int makeSocketConnection() {
 
   //connect to server
   int connection = socket(PF_INET, SOCK_STREAM, 0);
-  connect(connection, (struct sockaddr*) serverAddr, ADDRESS_SIZE);
+  if (!connection) {
+    free(serverAddr);
+    perror("Failed to create socket");
+    exit(0);
+  }
+  if (connect(connection, (struct sockaddr*) serverAddr, ADDRESS_SIZE) == -1) {
+    free(serverAddr);
+    perror("Failed to create connection");
+    exit(0);
+  }
 
   //free address struct and return connection
   free(serverAddr);
   return connection;
+}
+
+
+
+//callback for verification
+int CB(int norm, X509_STORE_CTX* ctx) {
+
+  //who knows???
+
+  return 1;
 }
