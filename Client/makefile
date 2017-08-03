@@ -6,7 +6,7 @@ all: client
 .PHONY: clean
 
 clean:
-	rm -f client ex *.o
+	rm -f client *.o
 
 client: client.o clientTest.o
 	$(CC) client.c clientTest.o -o client $(OPEN_SSL)
