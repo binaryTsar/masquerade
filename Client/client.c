@@ -1,9 +1,8 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <stdlib.h>
 #include <unistd.h>
-
+#include <string.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -11,94 +10,27 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 
-//google for testing
-#define PORT_NO 443
-#define SERVER_IP "172.217.3.99"
+#include "secSock.h"
 
-//#define PORT_NO 6500
-//#define SERVER_IP "127.0.0.1"
+#define PORT_NO 6500
+#define SERVER_IP "127.0.0.1"
 #define ADDRESS_SIZE sizeof(struct sockaddr_in)
 
-//Establish simple connection to server
-int makeSocketConnection();
-int CB(int a, X509_STORE_CTX* b);
-
-//test the connection is working
-void testConection(SSL* ssl) {
-
-    //use connection
-    char* buffer = (char*)"Client connection";
-    printf("Sending: %s\n",buffer);
-    int nBytes = 18;
-    SSL_write(ssl, buffer, nBytes);
-    char b[20];
-    SSL_read(ssl, b, 20);
-    printf("Received from server: %s\n\n",b);
-}
+typedef struct secS {
+  SSL_CTX* ctx;
+  SSL* ssl;
+  int connection;
+}* secSock;
 
 /*
- * Main method
+ * Close a connection and tidy up
  */
-int main(){
-
-  //set up connection
-  int connection = makeSocketConnection();
-
-  //set up ssl context
-  SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
-  if (!ctx) {
-    close(connection);
-    perror("Failed to create context.\n");
-    exit(0);
-  }
-
-  //create ssl object
-  SSL* ssl = SSL_new(ctx);
-  if (!ssl) {
-    SSL_CTX_free(ctx);
-    close(connection);
-    perror("Failed to create ssl object.\n");
-    exit(0);
-  }
-
-  //configure ssl
-  SSL_set_verify(ssl, SSL_VERIFY_PEER, *CB);
-
-  //connect ssl to connectionn fd
-  if (!SSL_set_fd(ssl, connection)) {
-    SSL_CTX_free(ctx);
-    SSL_free(ssl);
-    close(connection);
-    perror("Failed to link ssl to socket.\n");
-    exit(0);
-  }
-
-  //make connection
-  int err = SSL_connect(ssl);
-  if (err == 0) {
-    SSL_CTX_free(ctx);
-    SSL_free(ssl);
-    close(connection);
-    perror("Handshake failed.\n");
-    exit(0);
-  }
-  if (err < 0) {
-    SSL_CTX_free(ctx);
-    SSL_free(ssl);
-    close(connection);
-    perror("SSL error during handshake.\n");
-    exit(0);
-  }
-
-  //test connection
-  testConection(ssl);
-
-  //clean up
-  SSL_CTX_free(ctx);  //safe
-  SSL_free(ssl);      //safe
-  close(connection);  //could cause error
-
-  return 0;
+void closeConnection(void* in) {
+  secSock con = (secSock) in;
+  SSL_CTX_free(con->ctx);
+  SSL_free(con->ssl);
+  close(con->connection);
+  free(con);
 }
 
 /*
@@ -107,36 +39,89 @@ int main(){
 int makeSocketConnection() {
 
   //set server address
-  typedef struct sockaddr_in* socketAddr;
-  socketAddr serverAddr = (socketAddr)calloc(ADDRESS_SIZE, 1);
-  serverAddr->sin_family = AF_INET;
-  serverAddr->sin_port = htons(PORT_NO);
-  serverAddr->sin_addr.s_addr = inet_addr(SERVER_IP);
+  struct sockaddr_in serverAddr;
+  serverAddr.sin_family = AF_INET;
+  serverAddr.sin_port = htons(PORT_NO);
+  serverAddr.sin_addr.s_addr = inet_addr(SERVER_IP);
+  //set padding
+  memset(serverAddr.sin_zero, 0, sizeof(serverAddr.sin_zero));
 
   //connect to server
   int connection = socket(PF_INET, SOCK_STREAM, 0);
   if (!connection) {
-    free(serverAddr);
     perror("Failed to create socket");
-    exit(0);
+    return -1;
   }
-  if (connect(connection, (struct sockaddr*) serverAddr, ADDRESS_SIZE) == -1) {
-    free(serverAddr);
-    perror("Failed to create connection");
-    exit(0);
+  if (connect(connection, (struct sockaddr*) &serverAddr, ADDRESS_SIZE) == -1) {
+    perror("Failed to establish connection");
+    return -1;
   }
 
-  //free address struct and return connection
-  free(serverAddr);
   return connection;
 }
 
+/*
+ * Establish a tls connection
+ */
+secureConnection makeConnection(){
+  secSock con = (secSock)malloc(sizeof(struct secS));
+  con->ssl = NULL;
+  con->ctx = NULL;
 
+  //set up connection
+  con->connection = makeSocketConnection();
+  if (con->connection < 0) {
+    closeConnection(con);
+    return NULL;
+  }
 
-//callback for verification
-int CB(int norm, X509_STORE_CTX* ctx) {
+  //set up ssl context
+  con->ctx = SSL_CTX_new(TLS_client_method());
+  if (!(con->ctx)) {
+    closeConnection(con);
+    perror("Failed to create context.\n");
+    return NULL;
+  }
 
-  //who knows???
+  //create ssl object
+  con->ssl = SSL_new(con->ctx);
+  if (!(con->ssl)) {
+    closeConnection(con);
+    perror("Failed to create ssl object.\n");
+    return NULL;
+  }
 
-  return 1;
+  //connect ssl to connectionn fd
+  if (!SSL_set_fd(con->ssl, con->connection)) {
+    closeConnection(con);
+    perror("Failed to link ssl to socket.\n");
+    return NULL;
+  }
+
+  //make connection
+  int err = SSL_connect(con->ssl);
+  if (err <= 0) {
+    closeConnection(con);
+    perror((err == 0)? "Handshake failed.\n" : "SSL error during handshake.\n");
+    return NULL;
+  }
+
+  return (secureConnection)con;
+}
+
+/*
+ * Write bytes from a buffer
+ */
+int secureRead(secureConnection in, char* buffer, size_t bytes) {
+  secSock con = (secSock) in;
+  return SSL_read(con->ssl, buffer, bytes);
+;
+}
+
+ /*
+  * Read bytes to a buffer
+  */
+int secureWrite(secureConnection in, char* buffer, size_t bytes) {
+  secSock con = (secSock) in;
+  return SSL_write(con->ssl, buffer, bytes);
 }
