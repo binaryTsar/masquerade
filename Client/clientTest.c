@@ -1,16 +1,26 @@
 #include "secSock.h"
 #include <stdio.h>
+#include <string.h>
 
 //test the connection is working
 void testConection(secureConnection con) {
+    char* id = (char*)"user1";
 
     //use connection
-    char* buffer = (char*)"Client connection";
-    printf("Sending: %s\n",buffer);
-    secureWrite(con, buffer, 18);
-    char buf2[18];
-    secureRead(con, buf2, 18);
-    printf("Received from server: %s\n\n",buf2);
+    char* name = (char*)calloc(20, 1);
+    for (unsigned int i = 0; i < strlen(id) + 1; i++) {
+      name[i] = id[i];
+    }
+    //source and target are the same
+    secureWrite(con, name, 20);
+    secureWrite(con, name, 20);
+
+    char size = 26;
+    secureWrite(con, &size, 1);
+
+    char* data = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    secureWrite(con, data, 26);
+
 }
 
 

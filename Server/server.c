@@ -6,20 +6,32 @@
 //test the ssl connection
 void testConnection(secureConnection con) {
 
-  int nBytes = 1;
-  /*loop while connection is live*/
-  while(nBytes!=0){
-    char buffer[1024];
-    nBytes = secureRead(con,buffer,1024);
+  //read source
+  char src[20];
+  secureRead(con, src, 20);
+  printf("Source: %s\n", src);
 
-    secureWrite(con,buffer,nBytes);
-  }
+  //read target
+  char dst[20];
+  secureRead(con, dst, 20);
+  printf("Target: %s\n", dst);
+
+  //read size
+  char size;
+  secureRead(con, &size, 20);
+  printf("Size: %d bytes\n", size);
+
+  //read data
+  char* data = (char*)malloc(size);
+  secureRead(con, data, size);
+  printf("Data: %s\n", data);
+
+  //server response
 
   //clean up and end process
   closeConnection(con);
   exit(0);
 }
-
 
 int main() {
   if (startServer(testConnection) == -1) {

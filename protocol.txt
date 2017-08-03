@@ -1,0 +1,14 @@
+
+
+Basic protocols for straight transfers without delays
+
+Upload:
+I am (19 chars + NULL) - 20 bytes
+Target (19 chars + NULL) - 20 bytes
+Data Size (up to 255 bytes) - 1 byte
+data (not NULLed)
+
+Download:
+from 5 bytes
+size 1 byte
+data (not NULLed)
