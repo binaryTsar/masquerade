@@ -9,6 +9,6 @@ Data Size (up to 255 bytes) - 1 byte
 data (not NULLed)
 
 Download:
-from 5 bytes
+from 20 bytes
 size 1 byte
 data (not NULLed)
