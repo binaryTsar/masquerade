@@ -65,6 +65,7 @@ void closeConnection(secureConnection in) {
   SSL_CTX_free(con->ctx);
   close(con->connection);
   free(con);
+
 }
 
 /*

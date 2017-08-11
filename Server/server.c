@@ -17,26 +17,23 @@ int readSC(secureConnection con, char* src)  {
   //read target
   char dst[20];
   secureRead(con, dst, 20);
-  printf("Target: %s\n", dst);
 
   //read size
   unsigned int size;
   char buffer[4];
-  secureRead(con, buffer, 20);
+  secureRead(con, buffer, 4);
   memcpy(&size, buffer, 4);
-  printf("Size: %u bytes\n", size);
 
   //read data
   char data[size];
   secureRead(con, data, size);
-  printf("Data: %s\n", data);
 
   //write file to inbox
 
   //open file
   char path[30];
   sprintf(path, "%s/inbox.txt", dst);
-  int target_inbox = open(path, O_APPEND|O_CREAT, S_IRUSR|S_IWUSR);
+  int target_inbox = open(path, O_WRONLY|O_APPEND);
   if (target_inbox < 0) {
 	  perror("Failed to write to inbox.");
 	  exit(0);
@@ -52,7 +49,7 @@ int readSC(secureConnection con, char* src)  {
 
   //write size
   //TODO check return value type
-  len = 1;
+  len = 4;
   if (write(target_inbox, &size, len) != len) {
 	  perror("Unable to write to file.");
 	  exit(0);
@@ -73,17 +70,16 @@ void writeSC(secureConnection con, char* src, unsigned int size) {
   //server response
   char path[35];
   sprintf(path, "%s/inbox.txt", src);
-  int target_inbox = open(path, O_APPEND|O_CREAT, S_IRUSR|S_IWUSR);
+  int target_inbox = open(path, O_RDONLY);
   if (target_inbox < 0) {
     perror("Failed to open inbox.");
     exit(0);
   }
 
   //get sender
-  int len = 20;
   char sender[20];
   //TODO check return value type
-  if (read(target_inbox, sender, len) != len) {
+  if (read(target_inbox, sender, 20) != 20) {
     perror("Unable to read from file.");
     exit(0);
   }
@@ -95,13 +91,23 @@ void writeSC(secureConnection con, char* src, unsigned int size) {
   //send sender
   secureWrite(con, sender, 20);
 
+  //data size
+  unsigned int dataSize;
+  if (read(target_inbox, &dataSize, 4) != 4) {
+    perror("Unable to read from file.");
+    exit(0);
+  }
+
   unsigned int sendBlock = size - 20;
 
   //read data
-  char msg[sendBlock];
-  int found = read(target_inbox, msg, sendBlock);
+  char msg[dataSize];
+  if (read(target_inbox, msg, dataSize) != dataSize) {
+    perror("Unable to read from file.");
+    exit(0);
+  }
   //padding
-  for (unsigned int i = found; i < sendBlock; i++) {
+  for (unsigned int i = dataSize; i < sendBlock; i++) {
     msg[i] = '\0';
   }
 

@@ -1,5 +1,5 @@
 CC=clang -std=c99 -o3 -Wall -Wextra
-OPEN_SSL=-lssl -lcrypto
+OPEN_SSL=-lssl -lcrypto 
 
 all: client
 
@@ -16,5 +16,3 @@ client.o: client.c
 
 clientTest.o: clientTest.c
 	$(CC) clientTest.c -o clientTest.o -c
-
-

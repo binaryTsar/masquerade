@@ -37,7 +37,7 @@ void writeSC(secureConnection con, unsigned int bytes) {
   char* toSend = (char*)"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   char data[bytes-44];
   i = 0;
-  for (; i < strlen(id); i++) {
+  for (; i < strlen(toSend); i++) {
     data[i] = toSend[i];
   }
   for (; i<bytes-44; i++) {
@@ -46,8 +46,8 @@ void writeSC(secureConnection con, unsigned int bytes) {
   unsigned int size = bytes-44;
   char buffer[4];
   memcpy(buffer, &size, 4);
-  secureWrite(con, buffer, 1);
-  secureWrite(con, data, 26);
+  secureWrite(con, buffer, 4);
+  secureWrite(con, data, size);
 
 }
 
