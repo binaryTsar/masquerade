@@ -112,7 +112,7 @@ secureConnection makeConnection(){
 /*
  * Write bytes from a buffer
  */
-int secureRead(secureConnection in, char* buffer, size_t bytes) {
+int secureRead(secureConnection in, void* buffer, size_t bytes) {
   secSock con = (secSock) in;
   return SSL_read(con->ssl, buffer, bytes);
 ;
@@ -121,7 +121,7 @@ int secureRead(secureConnection in, char* buffer, size_t bytes) {
  /*
   * Read bytes to a buffer
   */
-int secureWrite(secureConnection in, char* buffer, size_t bytes) {
+int secureWrite(secureConnection in, void* buffer, size_t bytes) {
   secSock con = (secSock) in;
   return SSL_write(con->ssl, buffer, bytes);
 }

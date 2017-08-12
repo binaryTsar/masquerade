@@ -1,4 +1,9 @@
+
+
 #include "secSock.h"
+#include "transfer.h"
+
+
 #include <stdio.h>
 #include <string.h>
 
@@ -9,46 +14,54 @@
 #define READ "r"
 
 /*
+ * Send data in struct form
+ */
+void sendStruct(secureConnection con, packet data) {
+  secureWrite(con, data->sender, 20);
+  secureWrite(con, &(data->type), sizeof(int));
+  secureWrite(con, &(data->packetSize), sizeof(int));
+
+  if (data->type & F_START) {
+    secureWrite(con, data->fs->target, 20);
+    secureWrite(con, data->fs->data, data->packetSize-48);
+  }
+  else {
+    secureWrite(con, data->fc->data, data->packetSize-28);
+  }
+}
+
+/*
  * Send bytes of data
  */
-void writeSC(secureConnection con, unsigned int bytes) {
+void writeSC(secureConnection con, unsigned int bytes, char* id) {
+  //create struct
+  packet data = (packet)malloc(sizeof(struct p));
 
-  char* id = (char*)"user1";
+  data->sender = id;
+  data->type = F_START|F_END;
+  data->packetSize = bytes;
 
-  //send NULL padded username
-  char name[20];
-  unsigned int i = 0;
-  for (; i < strlen(id); i++) {
-    name[i] = id[i];
-  }
-  for (; i<20; i++) {
-    name[i] = '\0';
-  }
+  data->fs = (fileStart)malloc(sizeof(struct fs));
 
-  secureWrite(con, name, 20);
+  //testing only
+  data->fs->target = id;
 
-  //for testing use same name
-  secureWrite(con, name, 20);
-
-
-
-  //write data and size
-
+  //data
+  int offset = 48; //will change
   char* toSend = (char*)"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  char data[bytes-44];
-  i = 0;
+  char d[bytes-offset];
+  unsigned int i = 0;
   for (; i < strlen(toSend); i++) {
-    data[i] = toSend[i];
+    d[i] = toSend[i];
   }
   for (; i<bytes-44; i++) {
-    data[i] = '\0';
+    d[i] = '\0';
   }
-  unsigned int size = bytes-44;
-  char buffer[4];
-  memcpy(buffer, &size, 4);
-  secureWrite(con, buffer, 4);
-  secureWrite(con, data, size);
 
+  data->fs->data = d;
+
+  //send data
+  sendStruct(con, data);
 }
 
 void readSC(secureConnection con, unsigned int bytes) {
@@ -72,7 +85,7 @@ void readSC(secureConnection con, unsigned int bytes) {
 /*
  * Establish a conection to exchange bytes each way
  */
-void session(unsigned int bytes) {
+void session(unsigned int bytes, char* id) {
   //establish connection
   secureConnection con = makeConnection();
 
@@ -82,7 +95,7 @@ void session(unsigned int bytes) {
   }
 
   //send data
-  writeSC(con, bytes);
+  writeSC(con, bytes, id);
 
   //recieve data
   readSC(con, bytes);
@@ -94,17 +107,38 @@ void session(unsigned int bytes) {
 /*
  * Run a regular connection
  */
-int main() {
+int main(int argc, char** args) {
+  //check compatibility
   if (sizeof(int)!= 4) {
     perror("Int size not compatible.");
     exit(0);
   }
 
+  //get id
+  char* id;
+  if (argc < 2) {
+    perror("No ID given.");
+    exit(0);
+  }
+  id = args[2];
+  if (strlen(id)+1 > 20) {
+    perror("Invalid ID.");
+    exit(0);
+  }
 
-  unsigned int pause;
-  unsigned int bytes;
+  //get NULL padded id
+  char name[20];
+  unsigned int i = 0;
+  for (; i < strlen(id); i++) {
+    name[i] = id[i];
+  }
+  for (; i<20; i++) {
+    name[i] = '\0';
+  }
 
   //get config information
+  unsigned int pause;
+  unsigned int bytes;
   FILE* cfg = fopen(CONFIG, READ);
   if (
     fscanf(cfg, "WAIT:%u\n", &pause) != 1
@@ -122,7 +156,7 @@ int main() {
   }
   //while running regularly update sesion
   while (1) {
-    session(bytes);
+    session(bytes, name);
     sleep(pause);
   }
   return 0;
