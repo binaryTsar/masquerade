@@ -1,11 +1,11 @@
 CC=clang -std=c99 -o3 -Wall -Wextra
 OPEN_SSL=-lssl -lcrypto
 
-all: server
+all: server echo
 
 .PHONY: clean
 clean:
-	rm -f server *.o
+	rm -f echo server *.o
 
 server: listener.o server.o
 	$(CC) listener.o server.o -o server $(OPEN_SSL)
@@ -15,3 +15,6 @@ listener.o: listener.c
 
 server.o: server.c
 	$(CC) server.c -o server.o -c
+
+echo: secEcho.c
+	$(CC) secEcho.c -o echo $(OPEN_SSL)

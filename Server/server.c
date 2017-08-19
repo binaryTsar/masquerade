@@ -14,6 +14,12 @@
  */
 int readSC(secureConnection con, char* src)  {
 
+  //TESTING
+  //TODO handle enum stuff (last 4 bytes)
+
+  //char type[4];
+  //secureRead(con, type, 4);
+
   //read target
   char dst[20];
   secureRead(con, dst, 20);
@@ -23,6 +29,9 @@ int readSC(secureConnection con, char* src)  {
   char buffer[4];
   secureRead(con, buffer, 4);
   memcpy(&size, buffer, 4);
+  size = size - 44;
+
+
 
   //read data
   char data[size];

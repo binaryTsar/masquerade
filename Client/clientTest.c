@@ -18,9 +18,12 @@
  */
 void sendStruct(secureConnection con, packet data) {
   secureWrite(con, data->sender, 20);
-  secureWrite(con, &(data->type), sizeof(int));
-  secureWrite(con, &(data->packetSize), sizeof(int));
+  //secureWrite(con, &(data->type), sizeof(int));
 
+  secureWrite(con, data->fs->target, 20);
+  secureWrite(con, &(data->packetSize), sizeof(int));
+  secureWrite(con, data->fs->data, (data->packetSize)-44);
+  /*
   if (data->type & F_START) {
     secureWrite(con, data->fs->target, 20);
     secureWrite(con, data->fs->data, data->packetSize-48);
@@ -28,6 +31,7 @@ void sendStruct(secureConnection con, packet data) {
   else {
     secureWrite(con, data->fc->data, data->packetSize-28);
   }
+  */
 }
 
 /*
@@ -115,15 +119,18 @@ int main(int argc, char** args) {
   }
 
   //get id
-  char* id;
+  char* id = (char*)calloc(20,1);
   if (argc < 2) {
     perror("No ID given.");
     exit(0);
   }
-  id = args[2];
-  if (strlen(id)+1 > 20) {
+  if (strlen(args[1]) >= 20) {
     perror("Invalid ID.");
     exit(0);
+  }
+  else {
+    size_t s = 20;
+    strncpy(id, args[1], s);
   }
 
   //get NULL padded id
@@ -159,5 +166,6 @@ int main(int argc, char** args) {
     session(bytes, name);
     sleep(pause);
   }
+  free(id);
   return 0;
 }
