@@ -61,6 +61,48 @@ int makeSocketConnection() {
 }
 
 /*
+ * Create ssl context
+ */
+SSL_CTX* makeContext() {
+
+    //create context
+    SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
+    if (!ctx) {
+      perror("Unable to create SSL context");
+      ERR_print_errors_fp(stderr);
+      return NULL;
+    }
+
+    //configure ecdh
+    SSL_CTX_set_ecdh_auto(ctx, 1);
+
+    //configure verify
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT,NULL);
+    if (SSL_CTX_load_verify_locations(ctx, "../Server/cert.pem", NULL) == 0) {
+      perror("Error accessing CA.");
+      return NULL;
+    }
+
+    //load certificate
+    int result = SSL_CTX_use_certificate_file(ctx, "cert.pem", SSL_FILETYPE_PEM);
+    if (result <= 0) {
+        perror("Error reading certificate");
+        ERR_print_errors_fp(stderr);
+        return NULL;
+    }
+
+    //load key
+    result = SSL_CTX_use_PrivateKey_file(ctx, "key.pem", SSL_FILETYPE_PEM);
+    if (result <= 0 ) {
+        perror("Error reading key");
+        ERR_print_errors_fp(stderr);
+        return NULL;
+    }
+
+    return ctx;
+}
+
+/*
  * Establish a tls connection
  */
 secureConnection makeConnection(){
@@ -76,12 +118,7 @@ secureConnection makeConnection(){
   }
 
   //set up ssl context
-  con->ctx = SSL_CTX_new(TLS_client_method());
-  if (!(con->ctx)) {
-    closeConnection(con);
-    perror("Failed to create context.\n");
-    return NULL;
-  }
+  con->ctx = makeContext();
 
   //create ssl object
   con->ssl = SSL_new(con->ctx);

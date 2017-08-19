@@ -114,6 +114,13 @@ SSL_CTX* makeContext() {
     //configure ecdh
     SSL_CTX_set_ecdh_auto(ctx, 1);
 
+    //configure verify
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT,NULL);
+    if (SSL_CTX_load_verify_locations(ctx, "../Client/cert.pem", NULL) == 0) {
+      perror("Error accessing CA.");
+      return NULL;      
+    }
+
     //load certificate
     int result = SSL_CTX_use_certificate_file(ctx, "cert.pem", SSL_FILETYPE_PEM);
     if (result <= 0) {
