@@ -23,11 +23,10 @@ typedef struct secS {
 }* secSock;
 
 /*
- * Close a connection and tidy up
+ * Close a connection, but don't free context
  */
 void closeConnection(void* in) {
   secSock con = (secSock) in;
-  SSL_CTX_free(con->ctx);
   SSL_free(con->ssl);
   close(con->connection);
   free(con);
@@ -63,7 +62,7 @@ int makeSocketConnection() {
 /*
  * Create ssl context
  */
-SSL_CTX* makeContext() {
+void* makeContext(const char** certs) {
 
     //create context
     SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
@@ -78,13 +77,13 @@ SSL_CTX* makeContext() {
 
     //configure verify
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT,NULL);
-    if (SSL_CTX_load_verify_locations(ctx, "../root.pem", NULL) == 0) {
+    if (SSL_CTX_load_verify_locations(ctx, certs[0], NULL) == 0) {
       perror("Error accessing CA.");
       return NULL;
     }
 
     //load certificate
-    int result = SSL_CTX_use_certificate_file(ctx, "user1.pem", SSL_FILETYPE_PEM);
+    int result = SSL_CTX_use_certificate_file(ctx, certs[1], SSL_FILETYPE_PEM);
     if (result <= 0) {
         perror("Error reading certificate");
         ERR_print_errors_fp(stderr);
@@ -92,7 +91,7 @@ SSL_CTX* makeContext() {
     }
 
     //load key
-    result = SSL_CTX_use_PrivateKey_file(ctx, "user1.key", SSL_FILETYPE_PEM);
+    result = SSL_CTX_use_PrivateKey_file(ctx, certs[2], SSL_FILETYPE_PEM);
     if (result <= 0 ) {
         perror("Error reading key");
         ERR_print_errors_fp(stderr);
@@ -105,7 +104,7 @@ SSL_CTX* makeContext() {
 /*
  * Establish a tls connection
  */
-secureConnection makeConnection(){
+secureConnection makeConnection(void* clientCtx){
   secSock con = (secSock)malloc(sizeof(struct secS));
   con->ssl = NULL;
   con->ctx = NULL;
@@ -118,7 +117,7 @@ secureConnection makeConnection(){
   }
 
   //set up ssl context
-  con->ctx = makeContext();
+  con->ctx = (SSL_CTX*)clientCtx;
 
   //create ssl object
   con->ssl = SSL_new(con->ctx);

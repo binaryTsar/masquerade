@@ -2,7 +2,7 @@
 
 #include "secSock.h"
 #include "transfer.h"
-
+#include "parser.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -10,19 +10,16 @@
 #include <unistd.h>
 #include <limits.h>
 
-#define CONFIG "config.txt"
-#define READ "r"
 
 /*
  * Send data in struct form
  */
 void sendStruct(secureConnection con, packet data) {
-  secureWrite(con, data->sender, 20);
   //secureWrite(con, &(data->type), sizeof(int));
 
   secureWrite(con, data->fs->target, 20);
   secureWrite(con, &(data->packetSize), sizeof(int));
-  secureWrite(con, data->fs->data, (data->packetSize)-44);
+  secureWrite(con, data->fs->data, (data->packetSize)-24);
   /*
   if (data->type & F_START) {
     secureWrite(con, data->fs->target, 20);
@@ -37,18 +34,14 @@ void sendStruct(secureConnection con, packet data) {
 /*
  * Send bytes of data
  */
-void writeSC(secureConnection con, unsigned int bytes, char* id) {
+void writeSC(secureConnection con, unsigned int bytes) {
   //create struct
   packet data = (packet)malloc(sizeof(struct p));
 
-  data->sender = id;
   data->type = F_START|F_END;
   data->packetSize = bytes;
 
   data->fs = (fileStart)malloc(sizeof(struct fs));
-
-  //testing only
-  data->fs->target = id;
 
   //data
   int offset = 48; //will change
@@ -89,9 +82,9 @@ void readSC(secureConnection con, unsigned int bytes) {
 /*
  * Establish a conection to exchange bytes each way
  */
-void session(unsigned int bytes, char* id) {
+void session(config cfg, void* clientCtx) {
   //establish connection
-  secureConnection con = makeConnection();
+  secureConnection con = makeConnection(clientCtx);
 
   if (con == NULL) {
     perror("Connection attempt failed.");
@@ -99,73 +92,47 @@ void session(unsigned int bytes, char* id) {
   }
 
   //send data
-  writeSC(con, bytes, id);
-
+  writeSC(con, cfg->bytes);
+  printf("Written\n");
   //recieve data
-  readSC(con, bytes);
+  readSC(con, cfg->bytes);
 
   //clean up
   closeConnection(con);
+
+  printf("Connection closed\n");
 }
 
 /*
  * Run a regular connection
  */
-int main(int argc, char** args) {
-  //check compatibility
+int main(int argc, char** argv) {
+  //check system compatibility
   if (sizeof(int)!= 4) {
     perror("Int size not compatible.");
     exit(0);
   }
 
-  //get id
-  char* id = (char*)calloc(20,1);
+  //open config file
   if (argc < 2) {
-    perror("No ID given.");
+    perror("No config file provided.");
     exit(0);
   }
-  if (strlen(args[1]) >= 20) {
-    perror("Invalid ID.");
+
+  //read config file
+  config cfg = (config)calloc(1, sizeof(struct configStruct));
+  if (parse(argv[1], cfg) != 0) {
     exit(0);
   }
-  else {
-    size_t s = 20;
-    strncpy(id, args[1], s);
-  }
 
-  //get NULL padded id
-  char name[20];
-  unsigned int i = 0;
-  for (; i < strlen(id); i++) {
-    name[i] = id[i];
-  }
-  for (; i<20; i++) {
-    name[i] = '\0';
-  }
+  //form lifetime context
+  void* clientCtx = makeContext(cfg->certs);
 
-  //get config information
-  unsigned int pause;
-  unsigned int bytes;
-  FILE* cfg = fopen(CONFIG, READ);
-  if (
-    fscanf(cfg, "WAIT:%u\n", &pause) != 1
-    || fscanf(cfg, "BYTES:%u", &bytes) != 1
-  ) {
-    perror("Error reading config file.");
-    exit(0);
-  }
-  fclose(cfg);
-
-
-  if (bytes < 128) {
-    perror("Block size invalid! Must be between 128 and 4294967295 bytes.");
-    exit(0);
-  }
   //while running regularly update sesion
   while (1) {
-    session(bytes, name);
-    sleep(pause);
+    session(cfg, clientCtx);
+    sleep(cfg->delay);
+    printf("Next session\n");
   }
-  free(id);
   return 0;
 }

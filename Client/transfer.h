@@ -25,7 +25,6 @@ typedef struct fc {
 
 //id will be done by certs at TLS layer
  typedef struct p {
-   char* sender; //for testing
    int type;
    int packetSize;
    union {
