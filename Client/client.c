@@ -78,13 +78,13 @@ SSL_CTX* makeContext() {
 
     //configure verify
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT,NULL);
-    if (SSL_CTX_load_verify_locations(ctx, "../Server/cert.pem", NULL) == 0) {
+    if (SSL_CTX_load_verify_locations(ctx, "../root.pem", NULL) == 0) {
       perror("Error accessing CA.");
       return NULL;
     }
 
     //load certificate
-    int result = SSL_CTX_use_certificate_file(ctx, "cert.pem", SSL_FILETYPE_PEM);
+    int result = SSL_CTX_use_certificate_file(ctx, "user1.pem", SSL_FILETYPE_PEM);
     if (result <= 0) {
         perror("Error reading certificate");
         ERR_print_errors_fp(stderr);
@@ -92,7 +92,7 @@ SSL_CTX* makeContext() {
     }
 
     //load key
-    result = SSL_CTX_use_PrivateKey_file(ctx, "key.pem", SSL_FILETYPE_PEM);
+    result = SSL_CTX_use_PrivateKey_file(ctx, "user1.key", SSL_FILETYPE_PEM);
     if (result <= 0 ) {
         perror("Error reading key");
         ERR_print_errors_fp(stderr);
