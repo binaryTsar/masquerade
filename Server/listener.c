@@ -193,3 +193,15 @@ int secureWrite(secureConnection in, char* buffer, size_t bytes) {
   secSock con = (secSock) in;
   return SSL_write(con->ssl, buffer, bytes);
 }
+
+/*
+ * Get a client's name from their certificate
+ */
+ int getName(secureConnection in, char* buffer, size_t bytes) {
+   X509* c =  SSL_get_peer_certificate((SSL*)in->ssl);
+   X509_NAME* sname = X509_get_subject_name(c);
+
+   //DEPRECATED
+   X509_NAME_get_text_by_NID(sname,NID_commonName, buffer, bytes);
+   return 0;
+ }

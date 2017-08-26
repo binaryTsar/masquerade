@@ -15,6 +15,3 @@ listener.o: listener.c
 
 server.o: server.c
 	$(CC) server.c -o server.o -c
-
-echo: secEcho.c
-	$(CC) secEcho.c -o echo $(OPEN_SSL)

@@ -11,4 +11,5 @@ typedef struct sConn {
 int startServer(void (*serverCB)(secureConnection con));
 int secureRead(secureConnection con, char* buffer, size_t bytes);
 int secureWrite(secureConnection con, char* buffer, size_t bytes);
+int getName(secureConnection con, char* buffer, size_t bytes);
 void closeConnection(secureConnection);

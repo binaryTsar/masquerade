@@ -18,6 +18,7 @@ void sendStruct(secureConnection con, packet data) {
   //secureWrite(con, &(data->type), sizeof(int));
 
   secureWrite(con, data->fs->target, 20);
+  printf("Target: %s\n", data->fs->target);
   secureWrite(con, &(data->packetSize), sizeof(int));
   secureWrite(con, data->fs->data, (data->packetSize)-24);
   /*
@@ -56,6 +57,7 @@ void writeSC(secureConnection con, unsigned int bytes) {
   }
 
   data->fs->data = d;
+  data->fs->target = (char*)"user1";
 
   //send data
   sendStruct(con, data);
