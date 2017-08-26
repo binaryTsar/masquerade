@@ -86,6 +86,7 @@ void* makeContext(const char** certs) {
     int result = SSL_CTX_use_certificate_file(ctx, certs[1], SSL_FILETYPE_PEM);
     if (result <= 0) {
         perror("Error reading certificate");
+        perror(certs[1]);
         ERR_print_errors_fp(stderr);
         return NULL;
     }

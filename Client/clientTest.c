@@ -127,6 +127,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
+
   //form lifetime context
   void* clientCtx = makeContext(cfg->certs);
 

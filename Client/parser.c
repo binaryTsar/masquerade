@@ -31,8 +31,8 @@ int parseLine(FILE* file, config cfg) {
 
 
   buffer[19] = '\0';
-  char* field = (char*)malloc(20);
-  if (fgets(field, 20, file) == NULL) {
+  char* field = (char*)malloc(40);
+  if (fgets(field, 40, file) == NULL) {
     free(field);
     perror("Malformed config file.");
     return 1;
