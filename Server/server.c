@@ -8,9 +8,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <string.h>
 
 #define READ "r"
 #define OVERWRITE "w"
+
+#define MASK "mask"
 
 /*
  * Read data from client. Return size.
@@ -19,9 +22,6 @@ int readSC(secureConnection con, char* src)  {
 
   //TESTING
   //TODO handle enum stuff (last 4 bytes)
-
-  //char type[4];
-  //secureRead(con, type, 4);
 
   //read target
   char dst[20];
@@ -42,11 +42,16 @@ int readSC(secureConnection con, char* src)  {
 
   //write file to inbox
 
+  //nothing to store
+  if (strcmp(MASK, dst) == 0) {
+    return size+24;
+  }
+
+
   //open file
-  //TODO
-  //forced to loopback
   char path[30];
-  sprintf(path, "%s/inbox", src);
+
+  sprintf(path, "%s/inbox", dst);
 
   FILE* inbox = fopen(path, READ);
   if (inbox == NULL) {
@@ -68,7 +73,7 @@ int readSC(secureConnection con, char* src)  {
   }
 
   char messagePath[30];
-  sprintf(messagePath, "%s/%u", src, nameNext);
+  sprintf(messagePath, "%s/%u", dst, nameNext);
   if (nameNext == openNext-1) {
     perror("Inbox full.");
     perror(path);
@@ -125,6 +130,20 @@ int readSC(secureConnection con, char* src)  {
   return size+24;
 }
 
+void sendMask(secureConnection con, unsigned int size) {
+  //send mask sender
+  char name[20];
+  strcpy(name, MASK);
+  for (int i = strlen(name); i < 20; i++) {
+    name[i] = '\0';
+  }
+  secureWrite(con, name, 20);
+
+  //send junk
+  char junk[size];
+  secureWrite(con, junk, size);
+}
+
 void writeSC(secureConnection con, char* src, unsigned int size) {
   char path[30];
   sprintf(path, "%s/inbox", src);
@@ -155,7 +174,7 @@ void writeSC(secureConnection con, char* src, unsigned int size) {
   fclose(inbox);
 
   if (openNext == 0) {
-    perror("Inbox empty");
+    sendMask(con, size);
     exit(0);
   }
 
@@ -183,13 +202,6 @@ void writeSC(secureConnection con, char* src, unsigned int size) {
   fprintf(inbox, "OPEN_NEXT:%u", openNext);
   fclose(inbox);
 
-
-
-  //######################################################
-
-
-
-
   //server response
   int target_inbox = open(messagePath, O_RDONLY);
   if (target_inbox < 0) {
@@ -200,8 +212,7 @@ void writeSC(secureConnection con, char* src, unsigned int size) {
 
   //get sender
   char sender[20];
-  //TODO check return value type
-  int bytes = read(target_inbox, sender, 20);
+  ssize_t bytes = read(target_inbox, sender, 20);
   if (bytes == 0) {
     //empty file
     return;
@@ -248,7 +259,6 @@ void testConnection(secureConnection con) {
   //read source
   char src[20];
   getName(con, src, 20);
-  printf("Source: %s\n", src);
 
   unsigned int size = readSC(con, src);
   writeSC(con, src, size);

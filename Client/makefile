@@ -1,4 +1,4 @@
-CC=clang -std=c99 -o3 -Wall -Wextra
+CC=gcc -std=c99 -o3 -Wall -Wextra
 OPEN_SSL=-lssl -lcrypto
 
 all: client
@@ -7,8 +7,8 @@ all: client
 clean:
 	rm -f client .*.o
 
-client: .client.o .clientTest.o .parser.o
-	$(CC) .client.o .clientTest.o .parser.o -o client $(OPEN_SSL)
+client: .client.o .clientTest.o .parser.o .stdui.o
+	$(CC) .client.o .clientTest.o .parser.o .stdui.o -o client $(OPEN_SSL)
 
 .client.o: client.c
 	$(CC) client.c -o .client.o -c
@@ -18,3 +18,6 @@ client: .client.o .clientTest.o .parser.o
 
 .parser.o: parser.c
 	$(CC) parser.c -o .parser.o -c
+
+.stdui.o: stdui.c
+	$(CC) stdui.c -o .stdui.o -c

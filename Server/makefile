@@ -1,4 +1,4 @@
-CC=clang -std=c99 -o3 -Wall -Wextra
+CC=gcc -std=c99 -o3 -Wall -Wextra
 OPEN_SSL=-lssl -lcrypto
 
 all: server

@@ -8,6 +8,7 @@
 #define ROOT "ROOT_CERT"
 #define CERT "USER_CERT"
 #define KEY "USER_KEY"
+#define TARGET "TARGET"
 #define DELAY "WAIT"
 #define SIZE "BYTES"
 
@@ -45,6 +46,9 @@ int parseLine(FILE* file, config cfg) {
   //match keys
   if (strncmp(buffer, USER, strlen(USER)) == 0) {
     cfg->user = field;
+  }
+  else if (strncmp(buffer, TARGET, strlen(TARGET)) == 0) {
+    cfg->target = field;
   }
   else if (strncmp(buffer, ROOT, strlen(ROOT)) == 0) {
     cfg->certs[0] = field;
@@ -84,6 +88,10 @@ int valid(config cfg) {
   int v = 0;
   if (cfg->user == NULL) {
     perror("No username given.");
+    v = 1;
+  }
+  if (cfg->target == NULL) {
+    perror("No target given.");
     v = 1;
   }
   if (cfg->certs[0] == NULL

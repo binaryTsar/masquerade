@@ -14,4 +14,4 @@ void* makeContext(const char** certs);
 
 void closeConnection(void* con);
 int secureRead(secureConnection con, void* buffer, size_t bytes);
-int secureWrite(secureConnection con, void* buffer, size_t bytes);
+int secureWrite(secureConnection con, const void* buffer, size_t bytes);

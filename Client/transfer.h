@@ -11,7 +11,7 @@
 
 //file start payload struct
 typedef struct fs {
-  char* target;
+  const char* target;
   char* data;
 }* fileStart;
 

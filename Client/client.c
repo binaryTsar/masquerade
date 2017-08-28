@@ -158,7 +158,7 @@ int secureRead(secureConnection in, void* buffer, size_t bytes) {
  /*
   * Read bytes to a buffer
   */
-int secureWrite(secureConnection in, void* buffer, size_t bytes) {
+int secureWrite(secureConnection in, const void* buffer, size_t bytes) {
   secSock con = (secSock) in;
   return SSL_write(con->ssl, buffer, bytes);
 }
