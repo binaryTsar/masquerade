@@ -11,6 +11,10 @@
 #include <unistd.h>
 #include <limits.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
+
 
 /*
  * Send data in struct form
@@ -26,7 +30,7 @@ void sendStruct(secureConnection con, packet data) {
 /*
  * Send bytes of data
  */
-void writeSC(secureConnection con, config cfg) {
+void writeSC(secureConnection con, config cfg, iofd iofds) {
   //create struct
   packet data = (packet)malloc(sizeof(struct p));
 
@@ -42,7 +46,7 @@ void writeSC(secureConnection con, config cfg) {
   //get data, but not target (yet)
   unsigned int dataLength = cfg->bytes-28;
   char d[dataLength];
-  if (getData(dst, d, dataLength) != 0) {
+  if (getData(dst, d, dataLength, iofds) != 0) {
     perror("unable to read data");
     exit(0);
   }
@@ -54,7 +58,7 @@ void writeSC(secureConnection con, config cfg) {
   sendStruct(con, data);
 }
 
-void readSC(secureConnection con, unsigned int bytes) {
+void readSC(secureConnection con, unsigned int bytes, iofd iofds) {
 
   	//read source
     char src[20];
@@ -66,13 +70,13 @@ void readSC(secureConnection con, unsigned int bytes) {
     //read data
     char data[size];
     secureRead(con, data, size);
-    showData(src, data, size);
+    showData(src, data, size, iofds);
 }
 
 /*
  * Establish a conection to exchange bytes each way
  */
-void session(config cfg, void* clientCtx) {
+void session(config cfg, void* clientCtx, iofd iofds) {
   //establish connection
   secureConnection con = makeConnection(clientCtx);
 
@@ -82,9 +86,9 @@ void session(config cfg, void* clientCtx) {
   }
 
   //send data
-  writeSC(con, cfg);
+  writeSC(con, cfg, iofds);
   //recieve data
-  readSC(con, cfg->bytes);
+  readSC(con, cfg->bytes, iofds);
 
   //clean up
   closeConnection(con);
@@ -113,13 +117,25 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
+  //set IO stuff
+  struct io iofds;
+  iofds.controlFD = STDIN_FILENO;
+  iofds.outFD = STDOUT_FILENO;
+  //set pipes
+  char* users[4] = {(char*)"user1", (char*)"user2", (char*)"user3", (char*)"user4"};
+  for (int i = 0; i < 4; i++) {
+    char fifoPath[40];
+    sprintf(fifoPath, "fifo_%s_%s", cfg->user, users[i]);
+    mkfifo(fifoPath, 700);
+  }
+  iofds.inputFD[4] = 0;
 
   //form lifetime context
   void* clientCtx = makeContext(cfg->certs);
 
   //while running regularly update sesion
   while (1) {
-    session(cfg, clientCtx);
+    session(cfg, clientCtx, &iofds);
     sleep(cfg->delay);
   }
   return 0;

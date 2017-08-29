@@ -5,7 +5,7 @@ all: server
 
 .PHONY: clean empty
 clean: empty
-	rm -f server .*.o
+	rm -f server .*.o *.gch
 
 empty:
 	rm user1/* user2/* user3/* user4/*
