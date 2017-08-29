@@ -41,7 +41,6 @@ void writeSC(secureConnection con, config cfg, iofd iofds) {
   data->fs = (fileStart)malloc(sizeof(struct fs));
 
   char dst[20];
-  strncpy(dst, cfg->target, 20);
 
   //get data and target
   unsigned int dataLength = cfg->bytes-28;
@@ -128,6 +127,11 @@ int main(int argc, char** argv) {
     sprintf(fifoPath, "fifo_%s_%s", cfg->user, users[i]);
     mkfifo(fifoPath, 0777);
     iofds.inputFD[i] = open(fifoPath, O_RDONLY|O_NONBLOCK);
+    if (iofds.inputFD[i] == 0) {
+      perror("Unable to open");
+      perror(fifoPath);
+      exit(0);
+    }
     iofds.targets[i] = users[i];
   }
   iofds.inputFD[4] = 0;

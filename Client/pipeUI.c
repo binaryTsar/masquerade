@@ -36,40 +36,34 @@ int getData(char* target, char* buffer, unsigned int len, iofd fds) {
   }
   int ret = poll(pollfds, fdCount, 0);
 
-  FILE* stream;
-  int select = 0;
-  for (; select < fdCount; select++) {
-    if (pollfds[select].revents & POLLIN) {
-      stream = fdopen(select, READ);
+  char* path;
+  int file = 0;
+  for (int i = 0; ret && i < fdCount; i++) {
+    if (pollfds[i].revents & POLLIN) {
+      file = fds->inputFD[i];
+      path = fds->targets[i];
       break;
     }
   }
 
-
-  //read chars from stdin
-  unsigned int count = 0;
-  while (ret && count < len-1) {
-    char c = fgetc(stream);
-    if (c == '\n') { break; }
-    buffer[count++] = c;
+  if (file == 0) {
+    strncpy(target, MASK, 19);
+    target[19] = '\0';
+    return 0;
   }
-  buffer[count] = '\0';
-  fclose(stream);
 
-  if (count == 0) {
+  //read chars
+  int bytes = read(file, buffer, len-1);
+  buffer[bytes] = '\0';
+
+  if (bytes == 0) {
     strncpy(target, MASK, 19);
   }
   else {
-    strncpy(target, fds->targets[select], 19);
-    printf("Sending to %s\n", target);
-    printf("Data: %s\n", buffer);
+    strncpy(target, path, 19);
   }
   target[19] = '\0';
 
-
-
-
-  //sucess
   return 0;
 
 }
