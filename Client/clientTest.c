@@ -13,7 +13,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-
+#include <fcntl.h>
 
 
 /*
@@ -43,7 +43,7 @@ void writeSC(secureConnection con, config cfg, iofd iofds) {
   char dst[20];
   strncpy(dst, cfg->target, 20);
 
-  //get data, but not target (yet)
+  //get data and target
   unsigned int dataLength = cfg->bytes-28;
   char d[dataLength];
   if (getData(dst, d, dataLength, iofds) != 0) {
@@ -126,7 +126,9 @@ int main(int argc, char** argv) {
   for (int i = 0; i < 4; i++) {
     char fifoPath[40];
     sprintf(fifoPath, "fifo_%s_%s", cfg->user, users[i]);
-    mkfifo(fifoPath, 700);
+    mkfifo(fifoPath, 0777);
+    iofds.inputFD[i] = open(fifoPath, O_RDONLY|O_NONBLOCK);
+    iofds.targets[i] = users[i];
   }
   iofds.inputFD[4] = 0;
 

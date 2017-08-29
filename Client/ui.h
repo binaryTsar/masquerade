@@ -6,6 +6,7 @@ typedef struct io {
   int outFD;
   //0 terminated
   int inputFD[10];
+  char* targets[10];
 }* iofd;
 
 
