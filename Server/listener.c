@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -21,43 +20,57 @@ typedef struct secS {
 }* secSock;
 
 /*
- * Set up a new established connection
+ * Handshake a connection and delegate to callback
  */
  void initConnection(int socket, SSL_CTX* ctx, void (*serverCB) (secureConnection con)) {
 
+   //create ssl object
    SSL* ssl = SSL_new(ctx);
    if (!ssl) {
-     //abort connection
-     SSL_CTX_free(ctx);
+     perror("Failed to create SSL object");
+     close(socket);
      exit(0);
    }
+
+   //bind ssl to socket
    if (SSL_set_fd(ssl, socket) == 0) {
      perror("SSL Error establishing connection.\n");
+     SSL_free(ssl);
      SSL_CTX_free(ctx);
+     close(socket);
      exit(0);
    }
+
+
+   //accept connection
    int accept = SSL_accept(ssl);
    if (accept < 0) {
-       ERR_print_errors_fp(stderr);
+       perror("Failed to accept SSL connection");
+       SSL_free(ssl);
        SSL_CTX_free(ctx);
+       close(socket);
        exit(0);
    }
    else if (accept == 0) {
      //handshake failed safely
+     SSL_free(ssl);
      SSL_CTX_free(ctx);
+     close(socket);
      exit(0);
    }
 
+   //store in struct
    secureConnection con = (secureConnection)malloc(sizeof(struct sConn));
    con->connection = socket;
    con->ctx = ctx;
    con->ssl = ssl;
 
+   //callback
    serverCB(con);
  }
 
  /*
-  * Safely close a connection
+  * Safely close a connection at end of life
   */
 void closeConnection(secureConnection in) {
   secSock con = (secSock)in;
@@ -65,19 +78,18 @@ void closeConnection(secureConnection in) {
   SSL_CTX_free(con->ctx);
   close(con->connection);
   free(con);
-
 }
 
 /*
  * Create a socket for the server
  */
 int makeSocket() {
+
   //set up address
   struct sockaddr_in serverAddr;
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(PORT_NO);
   serverAddr.sin_addr.s_addr = inet_addr(SERVER_IP);
-  //set padding
   memset(serverAddr.sin_zero, 0, sizeof(serverAddr.sin_zero));
 
   //bind address to socket
@@ -85,7 +97,6 @@ int makeSocket() {
   if (serverSocket < 0) {
     return -1;
   }
-
   if (bind(serverSocket, (struct sockaddr*) &serverAddr, ADDRESS_SIZE) == -1) {
     return -1;
   }
@@ -107,33 +118,30 @@ SSL_CTX* makeContext() {
     SSL_CTX* ctx = SSL_CTX_new(TLS_server_method());
     if (!ctx) {
       perror("Unable to create SSL context");
-      ERR_print_errors_fp(stderr);
       return NULL;
     }
 
-    //configure ecdh
-    SSL_CTX_set_ecdh_auto(ctx, 1);
-
-    //configure verify
+    //load root certificate
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT,NULL);
     if (SSL_CTX_load_verify_locations(ctx, "../root.pem", NULL) == 0) {
-      perror("Error accessing CA.");
+      perror("Error loading root certificate");
+      SSL_CTX_free(ctx);
       return NULL;
     }
 
-    //load certificate
+    //load server certificate
     int result = SSL_CTX_use_certificate_file(ctx, "server1.pem", SSL_FILETYPE_PEM);
     if (result <= 0) {
         perror("Error reading certificate");
-        ERR_print_errors_fp(stderr);
+        SSL_CTX_free(ctx);
         return NULL;
     }
 
     //load key
     result = SSL_CTX_use_PrivateKey_file(ctx, "server1.key", SSL_FILETYPE_PEM);
     if (result <= 0 ) {
-        perror("Error reading key");
-        ERR_print_errors_fp(stderr);
+        perror("Error reading server key");
+        SSL_CTX_free(ctx);
         return NULL;
     }
 
@@ -155,6 +163,7 @@ int startServer(void (*serverCB)(secureConnection con)){
   //create ssl context
   SSL_CTX* ctx = makeContext();
   if (!ctx) {
+    perror("Unable to make SSL context");
     close(serverSocket);
     return -1;
   }

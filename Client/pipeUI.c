@@ -35,24 +35,18 @@ int getData(char* target, char* buffer, unsigned int len, const iofd fds) {
   //poll
   struct pollfd p[fdCount];
   for (int i=0; i<fdCount; p[i].fd=fds->inputFD[i], p[i++].events=POLLIN);
-  int ret = poll(p, fdCount, 0);
 
-  if (ret < 0) {
+  if (poll(p, fdCount, 0) < 0) {
     perror("Unable to poll inputs");
     return 1;
   }
 
   //select
   int select = -1;
-  for (int i=0; i<fdCount; i++) {
-    if (p[i].revents&POLLIN) {
-      select=i;
-      i=fdCount;
-    }
-  }
+  for (int i=0; i<fdCount;(p[i].revents&POLLIN)?(select=i,i=fdCount):(i++));
 
   //set mask if no inputs are ready
-  if (ret == 0 || select == -1) {
+  if (select == -1) {
     //set mask
     strncpy(target, MASK, 20);
     return 0;
