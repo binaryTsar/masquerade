@@ -1,21 +1,33 @@
+
+
+//include dprintf
+#define _POSIX_C_SOURCE 200809L
+//#define _GNU_SOURCE
+
+//implements this header
 #include "ui.h"
 
-#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
+
+//input polling and file handling
 #include <poll.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#include <stdlib.h>
 
-#define READ "r"
+#define MASK "mask"
+#define RW S_IRUSR|S_IWUSR
+#define FIFO O_RDONLY|O_NONBLOCK
 
 /*
- * Read data from stdin
+ * Ger data to send
  */
-int getData(char* target, char* buffer, unsigned int len, iofd fds) {
+int getData(char* target, char* buffer, unsigned int len, const iofd fds) {
 
+  //count file descriptors
   int fdCount = 0;
   for (; fdCount < 10; fdCount++) {
     if (fds->inputFD[fdCount] == 0) {
@@ -23,12 +35,8 @@ int getData(char* target, char* buffer, unsigned int len, iofd fds) {
     }
   }
 
-  //select input to use
-  if (fdCount == 0) {
-    perror("No inputs");
-    exit(0);
-  }
-
+  //select input
+  //poll
   struct pollfd pollfds[fdCount];
   for (int i = 0; i < fdCount; i++) {
     pollfds[i].fd = fds->inputFD[i];
@@ -36,57 +44,105 @@ int getData(char* target, char* buffer, unsigned int len, iofd fds) {
   }
   int ret = poll(pollfds, fdCount, 0);
 
-  char* path;
-  int file = 0;
-  for (int i = 0; ret && i < fdCount; i++) {
-    if (pollfds[i].revents & POLLIN) {
-      file = fds->inputFD[i];
-      path = fds->targets[i];
+  //select
+  int select = 0;
+  for (; ret && select < fdCount; select++) {
+    if (pollfds[select].revents & POLLIN) {
       break;
     }
   }
 
-  if (file == 0) {
-    strncpy(target, MASK, 19);
-    target[19] = '\0';
-    return 0;
-  }
-
-  //read chars
-  int bytes = read(file, buffer, len-1);
-  buffer[bytes] = '\0';
-
-  if (bytes == 0) {
+  //set data to send
+  if (ret == 0) {
+    //set mask
     strncpy(target, MASK, 19);
   }
   else {
-    strncpy(target, path, 19);
+    //read data and set target
+    int bytes = read(fds->inputFD[select], buffer, len-1);
+    buffer[bytes] = '\0';
+    strncpy(target, fds->targets[select], 19);
   }
+
+  //terminate target string
   target[19] = '\0';
-
   return 0;
-
 }
 
-
-
 /*
- * Output read data
+ * Output recieved data
  */
-void showData(char* sender, char* data, unsigned int size, iofd fds) {
+void showData(const char* sender, const char* data, unsigned int size, const iofd fds) {
   //check data is not masking
   if (strcmp(sender, MASK) == 0) {
     return;
   }
 
   //print data
-  //dprintf(fds->outFD, "Data from %s\n", sender);
-  //dprintf(fds->outFD, "%s\n", data);
-  printf("Data from %s\n", sender);
-  printf("%s\n", data);
+  dprintf(fds->outFD, "Data from %s\n", sender);
+  dprintf(fds->outFD, "%s\n", data);
 
-  if (size == 0 || fds == NULL) {
+  if (size == 0) {
     //supresses unused warnings
     //need to use with binary data
   }
+}
+
+/*
+ * Make iofd struct
+ */
+iofd makeIO(const char** targets, const char* user) {
+  iofd iofds = (iofd)malloc(sizeof(struct io));
+
+  //set out and control
+  iofds->controlFD = STDIN_FILENO;
+  iofds->outFD = STDOUT_FILENO;
+
+  //set fifos for each communication channel
+  int i = 0;
+  for (;i < 10; i++) {
+    //set last fd to 0
+    if (targets[i] == NULL) {
+      iofds->inputFD[i] = 0;
+      break;
+    }
+
+    //make fifo
+    char fifoPath[60];
+    sprintf(fifoPath, "fifos/fifo_%s_%s", user, targets[i]);
+    mkfifo(fifoPath, RW);
+
+    //open reading end
+    iofds->inputFD[i] = open(fifoPath, FIFO);
+    if (iofds->inputFD[i] == 0) {
+      perror("Unable to open");
+      perror(fifoPath);
+      exit(0);
+    }
+    iofds->targets = targets;
+  }
+
+  return iofds;
+}
+
+/*
+ * Free an iofd struct
+ */
+void freeIO(iofd iofds) {
+  //output is standard out
+  //control is standard in
+  //targets is a referance
+  //leave all of them
+
+  //close fifos
+  for (int i = 0; i < 10; i++) {
+    if (iofds->inputFD[i] == 0) {
+      break;
+    }
+    close(iofds->inputFD[i]);
+  }
+
+  //free struct
+  free(iofds);
+
 }

@@ -34,8 +34,6 @@ int readSC(secureConnection con, char* src)  {
   memcpy(&size, buffer, 4);
   size = size - 44;
 
-
-
   //read data
   char data[size];
   secureRead(con, data, size);

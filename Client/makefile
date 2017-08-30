@@ -5,7 +5,7 @@ all: client
 
 .PHONY: clean
 clean:
-	rm -f client .*.o fifo* *.gch
+	rm -f client .*.o fifos/* *.gch
 
 client: .client.o .clientTest.o .parser.o .pipeUI.o
 	$(CC) .client.o .clientTest.o .parser.o .pipeUI.o -o client $(OPEN_SSL)

@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdlib.h>
 
 
 /*
@@ -21,9 +22,9 @@
  */
 void sendStruct(secureConnection con, packet data) {
 
-  secureWrite(con, data->fs->target, 20);
+  secureWrite(con, data->target, 20);
   secureWrite(con, &(data->packetSize), sizeof(int));
-  secureWrite(con, data->fs->data, (data->packetSize)-24);
+  secureWrite(con, data->data, (data->packetSize)-24);
 
 }
 
@@ -32,13 +33,9 @@ void sendStruct(secureConnection con, packet data) {
  */
 void writeSC(secureConnection con, config cfg, iofd iofds) {
   //create struct
-  packet data = (packet)malloc(sizeof(struct p));
+  packet data = (packet)malloc(sizeof(struct dataPacket));
 
-  data->type = F_START|F_END;
   data->packetSize = cfg->bytes;
-
-  //TODO packet fragmentation and recombining
-  data->fs = (fileStart)malloc(sizeof(struct fs));
 
   char dst[20];
 
@@ -50,8 +47,8 @@ void writeSC(secureConnection con, config cfg, iofd iofds) {
     exit(0);
   }
 
-  data->fs->data = d;
-  data->fs->target = dst;
+  data->data = d;
+  data->target = dst;
 
   //send data
   sendStruct(con, data);
@@ -111,37 +108,22 @@ int main(int argc, char** argv) {
   }
 
   //read config file
-  config cfg = (config)calloc(1, sizeof(struct configStruct));
-  if (parse(argv[1], cfg) != 0) {
+  config cfg = makeConfig(argv[1]);
+  if (cfg == NULL) {
+    perror("Unable to read config file");
     exit(0);
   }
 
   //set IO stuff
-  struct io iofds;
-  iofds.controlFD = STDIN_FILENO;
-  iofds.outFD = STDOUT_FILENO;
-  //set pipes
-  char* users[4] = {(char*)"user1", (char*)"user2", (char*)"user3", (char*)"user4"};
-  for (int i = 0; i < 4; i++) {
-    char fifoPath[40];
-    sprintf(fifoPath, "fifo_%s_%s", cfg->user, users[i]);
-    mkfifo(fifoPath, 0777);
-    iofds.inputFD[i] = open(fifoPath, O_RDONLY|O_NONBLOCK);
-    if (iofds.inputFD[i] == 0) {
-      perror("Unable to open");
-      perror(fifoPath);
-      exit(0);
-    }
-    iofds.targets[i] = users[i];
-  }
-  iofds.inputFD[4] = 0;
+  const char* users[5] = {(char*)"user1", (char*)"user2", (char*)"user3", (char*)"user4", NULL};
+  iofd ioData = makeIO(users, cfg->user);
 
   //form lifetime context
   void* clientCtx = makeContext(cfg->certs);
 
   //while running regularly update sesion
   while (1) {
-    session(cfg, clientCtx, &iofds);
+    session(cfg, clientCtx, ioData);
     sleep(cfg->delay);
   }
   return 0;

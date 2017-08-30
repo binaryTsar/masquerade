@@ -48,7 +48,7 @@ int parseLine(FILE* file, config cfg) {
     cfg->user = field;
   }
   else if (strncmp(buffer, TARGET, strlen(TARGET)) == 0) {
-    cfg->target = field;
+    cfg->targets[0] = field;
   }
   else if (strncmp(buffer, ROOT, strlen(ROOT)) == 0) {
     cfg->certs[0] = field;
@@ -90,7 +90,7 @@ int valid(config cfg) {
     perror("No username given.");
     v = 1;
   }
-  if (cfg->target == NULL) {
+  if (cfg->targets[0] == NULL) {
     perror("No target given.");
     v = 1;
   }
@@ -111,23 +111,34 @@ int valid(config cfg) {
   return v;
 }
 
-int parse(const char* configFile, config cfg) {
+config makeConfig(const char* configFile) {
+
   FILE* file  = fopen(configFile, READ);
   if (file  == NULL) {
     perror("Could not open given configuration file:");
     perror(configFile);
-    return 1;
+    return NULL;
   }
+
+  //arrays are empty, pointers are NULL
+  config cfg = (config)calloc(sizeof(struct configStruct), 1);
 
   while (feof(file) == 0) {
     if (parseLine(file, cfg) != 0) {
+      perror("Error reading line");
       fclose(file);
-      return 1;
+      return NULL;
     }
   }
 
   fclose(file);
 
   //check fields were valid
-  return valid(cfg);
+  if (valid(cfg) == 0) {
+    return cfg;
+  }
+  else {
+    perror("Invalid config file");
+    return NULL;
+  }
 }

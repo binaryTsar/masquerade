@@ -1,17 +1,18 @@
 
 
-//store input and output file descriptors
+
+//io descriptor struct
 typedef struct io {
   int controlFD;
   int outFD;
-  //0 terminated
-  int inputFD[10];
-  char* targets[10];
+  int inputFD[10];  /* 0 terminated */
+  const char** targets;
 }* iofd;
 
+//create and free io struct
+iofd makeIO(const char**  targets, const char* user);
+void freeIO(iofd io);
 
-
-#define MASK "mask"
-
-int getData(char* target, char* buffer, unsigned int len, iofd fds);
-void showData(char* sender, char* data, unsigned int size, iofd fds);
+//functions to get and output data
+int getData(char* target, char* buffer, unsigned int len, const iofd fds);
+void showData(const char* sender, const char* data, unsigned int size, const iofd fds);
