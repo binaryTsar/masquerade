@@ -1,7 +1,6 @@
 
 
 #include "secSock.h"
-#include "transfer.h"
 #include "parser.h"
 #include "ui.h"
 
@@ -18,54 +17,44 @@
 
 
 /*
- * Send data in struct form
+ * Send a block of data
  */
-void sendStruct(secureConnection con, packet data) {
+int writeSC(secureConnection con, config cfg, iofd iofds) {
 
-  secureWrite(con, data->target, 20);
-  secureWrite(con, &(data->packetSize), sizeof(int));
-  secureWrite(con, data->data, (data->packetSize)-24);
+  //set packet size
+  int packetSize = cfg->bytes;
 
+  //get data and target
+  unsigned int dataLength = packetSize-24;
+  char data[dataLength];
+  char dst[20];
+  if (getData(dst, data, dataLength, iofds) != 0) {
+    perror("Unable to read data");
+    return 0;
+  }
+
+  //send data
+  secureWrite(con, dst, 20);
+  secureWrite(con, &packetSize, 4);
+  secureWrite(con, data, packetSize-24);
+  return 1;
 }
 
 /*
- * Send bytes of data
+ * Read a recieved block of memory
  */
-void writeSC(secureConnection con, config cfg, iofd iofds) {
-  //create struct
-  packet data = (packet)malloc(sizeof(struct dataPacket));
-
-  data->packetSize = cfg->bytes;
-
-  char dst[20];
-
-  //get data and target
-  unsigned int dataLength = cfg->bytes-28;
-  char d[dataLength];
-  if (getData(dst, d, dataLength, iofds) != 0) {
-    perror("unable to read data");
-    exit(0);
-  }
-
-  data->data = d;
-  data->target = dst;
-
-  //send data
-  sendStruct(con, data);
-}
-
 void readSC(secureConnection con, unsigned int bytes, iofd iofds) {
 
   	//read source
     char src[20];
     secureRead(con, src, 20);
 
-    //size will be bytes-20
-    unsigned int size =bytes-20;
-
     //read data
+    unsigned int size = bytes-20;
     char data[size];
     secureRead(con, data, size);
+
+    //show data
     showData(src, data, size, iofds);
 }
 
@@ -77,18 +66,18 @@ void session(config cfg, void* clientCtx, iofd iofds) {
   secureConnection con = makeConnection(clientCtx);
 
   if (con == NULL) {
-    perror("Connection attempt failed.");
+    perror("Connection attempt failed");
     return;
   }
 
   //send data
-  writeSC(con, cfg, iofds);
-  //recieve data
-  readSC(con, cfg->bytes, iofds);
+  if (writeSC(con, cfg, iofds)) {
+    //recieve data
+    readSC(con, cfg->bytes, iofds);
+  }
 
   //clean up
   closeConnection(con);
-
 }
 
 /*
@@ -101,7 +90,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  //open config file
+  //check args
   if (argc < 2) {
     perror("No config file provided.");
     exit(0);
@@ -115,16 +104,31 @@ int main(int argc, char** argv) {
   }
 
   //set IO stuff
-  const char* users[5] = {(char*)"user1", (char*)"user2", (char*)"user3", (char*)"user4", NULL};
-  iofd ioData = makeIO(users, cfg->user);
+  iofd ioData = makeIO(cfg->targets, cfg->user);
+  if (cfg == NULL) {
+    perror("Unable to read config file");
+    freeConfig(cfg);
+    exit(0);
+  }
 
-  //form lifetime context
+  //make lifetime context
   void* clientCtx = makeContext(cfg->certs);
+  if (clientCtx == NULL) {
+    perror("Unable to make context");
+    freeConfig(cfg);
+    freeIO(ioData);
+    exit(0);
+  }
 
   //while running regularly update sesion
-  while (1) {
+  while (terminate(ioData)) {
     session(cfg, clientCtx, ioData);
     sleep(cfg->delay);
   }
+
+  //free memory and return
+  freeConfig(cfg);
+  freeIO(ioData);
+  freeContext(clientCtx);
   return 0;
 }

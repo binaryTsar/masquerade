@@ -16,3 +16,6 @@ void freeIO(iofd io);
 //functions to get and output data
 int getData(char* target, char* buffer, unsigned int len, const iofd fds);
 void showData(const char* sender, const char* data, unsigned int size, const iofd fds);
+
+//control instructions
+int terminate(iofd fds);

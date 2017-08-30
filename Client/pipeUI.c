@@ -29,7 +29,7 @@ int getData(char* target, char* buffer, unsigned int len, const iofd fds) {
 
   //count file descriptors
   int fdCount = 0;
-  for (int i=0;i<10; fds->inputFD[i]?i++:fdCount=i,i=10);
+  for (int i=0;i<10; fds->inputFD[i]?i++:(fdCount=i,i=10));
 
   //select input
   //poll
@@ -37,16 +37,26 @@ int getData(char* target, char* buffer, unsigned int len, const iofd fds) {
   for (int i=0; i<fdCount; p[i].fd=fds->inputFD[i], p[i++].events=POLLIN);
   int ret = poll(p, fdCount, 0);
 
+  if (ret < 0) {
+    perror("Unable to poll inputs");
+    return 1;
+  }
+
+  //select
+  int select = -1;
+  for (int i=0; i<fdCount; i++) {
+    if (p[i].revents&POLLIN) {
+      select=i;
+      i=fdCount;
+    }
+  }
+
   //set mask if no inputs are ready
-  if (ret == 0) {
+  if (ret == 0 || select == -1) {
     //set mask
     strncpy(target, MASK, 20);
     return 0;
   }
-
-  //select
-  int select = 0;
-  for (int i=0; i<fdCount; (p[i].revents&POLLIN)?select=i,i=fdCount:i++);
 
   //read data and set target
   int bytes = read(fds->inputFD[select], buffer, len-1);
@@ -103,9 +113,10 @@ iofd makeIO(const char** targets, const char* user) {
     //open reading end
     iofds->inputFD[i] = open(fifoPath, FIFO);
     if (!iofds->inputFD[i]) {
-      perror("Unable to open");
-      perror(fifoPath);
-      exit(0);
+      perror("Unable to open fifo");
+      for (int j=0;j<i;close(iofds->inputFD[j++]));
+      free(iofds);
+      return NULL;
     }
     iofds->targets = targets;
   }
@@ -123,9 +134,23 @@ void freeIO(iofd iofds) {
   //leave all of them
 
   //close fifos
-  for (int i=0;i<10;(iofds->inputFD[i])?close(iofds->inputFD[i++]):i=10);
+  for (int i=0;i<10;(iofds->inputFD[i])?close(iofds->inputFD[i++]):(i=10));
 
   //free struct
   free(iofds);
+}
 
+/*
+ * Check if the program is finished
+ */
+int terminate(iofd fds) {
+  //check if there is data to read
+  struct pollfd p;
+  p.fd=fds->controlFD;
+  p.events=POLLIN;
+  if (poll(&p, 1, 0)) {
+    //read data
+    return 0;
+  }
+  return 1;
 }

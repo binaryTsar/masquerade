@@ -139,6 +139,11 @@ void sendMask(secureConnection con, unsigned int size) {
 
   //send junk
   char junk[size];
+  junk[0] = 'j';
+  junk[1] = 'u';
+  junk[2] = 'n';
+  junk[3] = 'k';
+  junk[4] = '\n';
   secureWrite(con, junk, size);
 }
 
