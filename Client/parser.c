@@ -111,12 +111,15 @@ int valid(config cfg) {
   return v;
 }
 
+/*
+ * Create a valid config struct
+ */
 config makeConfig(const char* configFile) {
 
+  //open config file
   FILE* file  = fopen(configFile, READ);
   if (file  == NULL) {
-    perror("Could not open given configuration file:");
-    perror(configFile);
+    perror("Could not open given configuration file");
     return NULL;
   }
 
@@ -141,4 +144,14 @@ config makeConfig(const char* configFile) {
     perror("Invalid config file");
     return NULL;
   }
+}
+
+/*
+ * Free config struct
+ */
+void freeConfig(config cfg) {
+  free((char*)cfg->user);
+  for (int i = 0; i<3;free((char*)cfg->certs[i++]));
+  for (int i = 0; i<10;free((char*)cfg->targets[i++]));
+  free(cfg);
 }

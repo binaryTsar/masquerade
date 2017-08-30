@@ -29,43 +29,31 @@ int getData(char* target, char* buffer, unsigned int len, const iofd fds) {
 
   //count file descriptors
   int fdCount = 0;
-  for (; fdCount < 10; fdCount++) {
-    if (fds->inputFD[fdCount] == 0) {
-      break;
-    }
-  }
+  for (int i=0;i<10; fds->inputFD[i]?i++:fdCount=i,i=10);
 
   //select input
   //poll
-  struct pollfd pollfds[fdCount];
-  for (int i = 0; i < fdCount; i++) {
-    pollfds[i].fd = fds->inputFD[i];
-    pollfds[i].events = POLLIN;
+  struct pollfd p[fdCount];
+  for (int i=0; i<fdCount; p[i].fd=fds->inputFD[i], p[i++].events=POLLIN);
+  int ret = poll(p, fdCount, 0);
+
+  //set mask if no inputs are ready
+  if (ret == 0) {
+    //set mask
+    strncpy(target, MASK, 20);
+    return 0;
   }
-  int ret = poll(pollfds, fdCount, 0);
 
   //select
   int select = 0;
-  for (; ret && select < fdCount; select++) {
-    if (pollfds[select].revents & POLLIN) {
-      break;
-    }
-  }
+  for (int i=0; i<fdCount; (p[i].revents&POLLIN)?select=i,i=fdCount:i++);
 
-  //set data to send
-  if (ret == 0) {
-    //set mask
-    strncpy(target, MASK, 19);
-  }
-  else {
-    //read data and set target
-    int bytes = read(fds->inputFD[select], buffer, len-1);
-    buffer[bytes] = '\0';
-    strncpy(target, fds->targets[select], 19);
-  }
+  //read data and set target
+  int bytes = read(fds->inputFD[select], buffer, len-1);
+  buffer[bytes] = '\0';
+  strncpy(target, fds->targets[select], 20);
 
   //terminate target string
-  target[19] = '\0';
   return 0;
 }
 
@@ -102,7 +90,7 @@ iofd makeIO(const char** targets, const char* user) {
   int i = 0;
   for (;i < 10; i++) {
     //set last fd to 0
-    if (targets[i] == NULL) {
+    if (!targets[i]) {
       iofds->inputFD[i] = 0;
       break;
     }
@@ -114,7 +102,7 @@ iofd makeIO(const char** targets, const char* user) {
 
     //open reading end
     iofds->inputFD[i] = open(fifoPath, FIFO);
-    if (iofds->inputFD[i] == 0) {
+    if (!iofds->inputFD[i]) {
       perror("Unable to open");
       perror(fifoPath);
       exit(0);
@@ -135,12 +123,7 @@ void freeIO(iofd iofds) {
   //leave all of them
 
   //close fifos
-  for (int i = 0; i < 10; i++) {
-    if (iofds->inputFD[i] == 0) {
-      break;
-    }
-    close(iofds->inputFD[i]);
-  }
+  for (int i=0;i<10;(iofds->inputFD[i])?close(iofds->inputFD[i++]):i=10);
 
   //free struct
   free(iofds);
